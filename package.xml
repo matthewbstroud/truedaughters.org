@@ -94,15 +94,7 @@
     </types>
     <types>
         <members>*</members>
-        <name>SharingSet</name>
-    </types>
-    <types>
-        <members>*</members>
         <name>StaticResource</name>
-    </types>
-    <types>
-        <members>*</members>
-        <name>Translations</name>
     </types>
     <types>
         <members>*</members>

@@ -70,10 +70,7 @@
                 </apex:pageBlockSection>
             </apex:pageBlockSection>
 			<apex:pageBlockSection collapsible="false" columns="2" title="Email Preview">
-               	<apex:outputLabel style="font-weight: bold" for="htmlPreviewPane">HTML Preview</apex:outputLabel>
-                <apex:outputLabel style="font-weight: bold" for="textPreviewPane">Text Preview</apex:outputLabel>
                 <apex:outputText escape="false" value="{!emailBodyHtml}"></apex:outputText>
-                <apex:inputTextarea id="textPreviewPane" cols="100" rows="25" readonly="true" value="{!emailBodyText}" />   
             </apex:pageBlockSection>
             <apex:commandButton action="{!saveTemplate}" value="save template">
                             </apex:commandButton>
