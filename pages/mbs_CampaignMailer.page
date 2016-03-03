@@ -10,8 +10,8 @@
         </apex:pageBlockSection>
     </apex:pageBlock>
     <apex:form id="campaignMailerForm">
-        <apex:inputHidden id="pageMode" value="{!previewMode}" />
-        <apex:pageBlock id="mailerDetails" rendered="{!!previewMode}" title="Mailer Details" mode="edit">
+        <apex:inputHidden id="pageMode" value="{!currentPage}" />
+        <apex:pageBlock id="mailerDetails" rendered="{!IsEditPage}" title="Mailer Details" mode="edit">
             <apex:pageBlockButtons >
                 <apex:commandButton value="Cancel" title="Cancel" action="{!cancel}" />
                 <apex:commandButton value="Next" title="Next" action="{!previewMailer}" />
@@ -22,20 +22,14 @@
                 <apex:inputCheckbox id="includeGuardian" label="Parent or Guardian of member" title="Parent or Guardian of member"
                                     value="{!mailMemberGuardians}" />
             </apex:pageBlockSection>
-            <apex:pageBlockSection columns="1" title="Which email template would you like to use?">
-                <apex:selectList size="1" multiselect="false" value="{!selectedTemplateId}">
-                    <apex:selectOptions value="{!MailerTemplates}"/>
-                </apex:selectList>
-            </apex:pageBlockSection>
             <apex:pageBlockSection columns="1" title="What should the subject say?">
-                <apex:inputText id="eSubject" label="Subject" value="{!emailSubject}" />
+                <apex:inputText required="true" id="eSubject" label="Subject" size="100" value="{!emailSubject}" />
             </apex:pageBlockSection>
             <apex:pageBlockSection columns="1" title="What should the body say?">
-                <apex:inputTextarea richText="true" value="{!emailBodyHtml}" id="htmlEdit" />
-                <apex:inputTextarea id="textEdit" cols="100" rows="25" readonly="false" value="{!emailBodyText}" />  
+                <apex:inputTextarea label="Body" required="true" richText="true" value="{!emailBodyHtml}" id="htmlEdit" />
             </apex:pageBlockSection>
         </apex:pageBlock>
-        <apex:pageBlock id="previewBlock" rendered="{!previewMode}" title="Preview Mailing" mode="detail">
+        <apex:pageBlock id="previewBlock" rendered="{!IsPreviewPage}" title="Preview Mailing" mode="detail">
             <apex:pageBlockButtons >
                 <apex:commandButton value="Back" title="Back" action="{!goBack}" />
                 <apex:commandButton value="Send" title="Send" action="{!sendMail}" />
@@ -69,11 +63,18 @@
                     </apex:pageBlockTable>
                 </apex:pageBlockSection>
             </apex:pageBlockSection>
-			<apex:pageBlockSection collapsible="false" columns="2" title="Email Preview">
-                <apex:outputText escape="false" value="{!emailBodyHtml}"></apex:outputText>
+			<apex:pageBlockSection collapsible="false" columns="1" title="Email Preview">
+                <apex:outputText label="Subject" escape="false" value="{!emailSubject}"></apex:outputText>
+                <apex:outputText label="Body" escape="false" value="{!HtmlPreview}"></apex:outputText>
             </apex:pageBlockSection>
-            <apex:commandButton action="{!saveTemplate}" value="save template">
-                            </apex:commandButton>
+        </apex:pageBlock>
+        <apex:pageBlock id="resultsBlock" rendered="{!IsResultPage}" title="Results" mode="detail">
+            <apex:pageBlockButtons >
+                <apex:commandButton value="Close" title="Close" action="{!view}" />
+            </apex:pageBlockButtons>                      
+			<apex:pageBlockSection collapsible="false" columns="2" title="Email Preview">
+                <apex:outputText label="Emails Sent" escape="false" value="{!emailCount}"></apex:outputText>
+            </apex:pageBlockSection>
         </apex:pageBlock>
     </apex:form>
 </apex:page>

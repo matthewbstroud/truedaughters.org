@@ -1,25 +1,31 @@
 public with sharing class mbs_CampainMailerExtension {
     private Campaign m_campaign;
-    public Boolean previewMode {get; set;}
+    public Boolean getIsEditPage() {
+        return currentPage == 'EDIT';
+    }
+    public Boolean getIsPreviewPage() {
+        return currentPage == 'PREVIEW';
+    }
+    public Boolean getIsResultPage() {
+        return currentPage == 'RESULT';
+    }
     public Boolean mailMembers {get; set;}
     public Boolean mailMemberGuardians {get; set;}
     public String emailSubject {get;set;}
     public String emailBodyHtml {get;set;}
     public String emailBodyText {get;set;}
-    
+    public Integer emailCount {get;set;}
+
+    public string currentPage {get;set;}
     public List<Contact> selectedMembers {get; set;}
     public List<npe4__Relationship__c> selectedGuardians {get; set;}
     public EmailTemplate eTemplate {get;set;}
     private Messaging.SingleEmailMessage previewEmail;
     public mbs_CampainMailerExtension(ApexPages.StandardController stdController) {
+        currentPage = 'EDIT';
         this.m_campaign = (Campaign)stdController.getRecord();
     }
-    public void setHtmlPreview(String val) {
-        eTemplate.HtmlValue = val;
-    }
-    public String getHtmlPreview() {
-        return eTemplate.HtmlValue;
-    }  
+    public String HtmlPreview {get;set;}
     public String getTextPreview() {
         return eTemplate.Body;
     } 
@@ -53,15 +59,13 @@ public with sharing class mbs_CampainMailerExtension {
                 break;
             }
         }
-        if (selectedMembers.isEmpty() && selectedGuardians.isEmpty()) {
-            previewMode = false;
-        }
     }
     
 	public String selectedTemplateId { public get; public set; }
 
     public List<SelectOption> getMailerTemplates() {
         List<SelectOption> options = new List<SelectOption>();
+        
         for (EmailTemplate t : [
             select Id,Name 
             from EmailTemplate
@@ -114,7 +118,7 @@ public with sharing class mbs_CampainMailerExtension {
     }
     
     public PageReference goBack() {
-        previewMode = false;
+        currentPage = 'EDIT';
         return null;
     }
     
@@ -131,14 +135,14 @@ public with sharing class mbs_CampainMailerExtension {
     }
     
     public PageReference previewMailer() {
-        previewMode = false;
         if (!mailMembers && ! mailMemberGuardians) {
             ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR, 'You must specify at least one recipient group.'));
             return null;
         }
         generateRecipientList();
-        loadEmailTemplate();
-        previewMode = true;
+        HtmlPreview = getEmailHeader('Jane Doe') + emailBodyHtml;
+        //loadEmailTemplate();
+        currentPage = 'PREVIEW';
         return null;
     }
     
@@ -146,36 +150,61 @@ public with sharing class mbs_CampainMailerExtension {
         update eTemplate;
     }
     
+    private string getEmailHeader(String memberName) {
+        string headerHtml = '<img alt="True Daughters" height="200" width="600" src="https://cs4.salesforce.com/servlet/servlet.ImageServer?id=015P0000000GMRO&oid=00DP0000003oUZq" /><br/>' + 
+            '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;fone-size:14px;color:#000000;">Dear&nbsp;' + memberName + ',</p><p/>' +
+            '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;">';
+        return headerHtml;
+    }
+    
+    private string getEmailFooter() {      
+         string footerHtml = '</p>' + 
+            '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;fone-size:14px;color:#000000;">Sincerely,</p><p/>' +
+            '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;">' + UserInfo.getFirstName() + ' ' + UserInfo.getLastName() + '<br/>' +
+             UserInfo.getOrganizationName() + '<br/>' + UserInfo.getUserEmail() + '</p>';
+        return footerHtml;
+    }
+    
     public PageReference sendMail() {
+        emailCount = 0;
         List<Messaging.SingleEmailMessage> emailMessages = new List<Messaging.SingleEmailMessage>();
+        String headerHtml;
+
         for (Contact member : selectedMembers) {        
-            Messaging.SingleEmailMessage emailMessage = new Messaging.SingleEmailMessage();
-            emailMessage.setTargetObjectId(member.Id);
-            emailMessage.setTemplateId(selectedTemplateId);
-            //emailMessage.HtmlBody = eTemplate.HtmlValue;
-            //emailMessage.Subject = eTemplate.Subject;
-            //emailMessage.PlainTextBody = eTemplate.Body;
-            emailMessage.setSaveAsActivity(true);
-            emailMessages.add(emailMessage);
-            if (emailMessages.size() == 100) {
-                sendBatchEmail(emailMessages);
-                emailMessages.clear();
-            }
+            if (String.isNotEmpty(member.Email)) {
+                Messaging.SingleEmailMessage emailMessage = new Messaging.SingleEmailMessage();
+                emailMessage.setTargetObjectId(member.Id);
+                //emailMessage.setTemplateId(selectedTemplateId);            
+                headerHtml = getEmailHeader(member.Name);
+                emailMessage.HtmlBody = headerHtml + emailBodyHtml;
+                emailMessage.Subject = emailSubject;
+                emailMessage.setSaveAsActivity(true);
+                emailMessages.add(emailMessage);
+                if (emailMessages.size() == 100) {
+                    sendBatchEmail(emailMessages);
+                    emailMessages.clear();
+                }
+            }            
         }
         for (npe4__Relationship__c guardian : selectedGuardians) {
-            Messaging.SingleEmailMessage emailMessage = new Messaging.SingleEmailMessage();
-            emailMessage.setTargetObjectId(guardian.npe4__RelatedContact__c);
-            emailMessage.setTemplateId(selectedTemplateId);
-            emailMessage.setSaveAsActivity(false);
-            emailMessages.add(emailMessage);
-            if (emailMessages.size() == 100) {
-                sendBatchEmail(emailMessages);
-                emailMessages.clear();
-            }
+            if (String.isNotEmpty(guardian.npe4__RelatedContact__r.Email)) {
+                Messaging.SingleEmailMessage emailMessage = new Messaging.SingleEmailMessage();
+                emailMessage.setTargetObjectId(guardian.npe4__RelatedContact__c);
+                headerHtml = getEmailHeader(guardian.npe4__RelatedContact__r.Name);
+                emailMessage.HtmlBody = headerHtml + emailBodyHtml;
+                emailMessage.Subject = emailSubject;
+                emailMessage.setSaveAsActivity(false);
+                emailMessages.add(emailMessage);
+                if (emailMessages.size() == 100) {
+                    sendBatchEmail(emailMessages);
+                    emailMessages.clear();
+                }
+            }            
         }
         if (emailMessages.size() > 0) {
             sendBatchEmail(emailMessages);
         }
+        currentPage = 'RESULT';
         return null;
     }
     
@@ -183,6 +212,12 @@ public with sharing class mbs_CampainMailerExtension {
         if (emailMessages.isEmpty()) {
             return;
         }
-        List<Messaging.SendEmailResult> results = Messaging.sendEmail(emailMessages);
+        emailCount += emailMessages.size();
+        List<Messaging.SendEmailResult> results;
+        try {
+            results = Messaging.sendEmail(emailMessages);
+        }catch(Exception e) {
+            ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR, 'Error Sending Email: ' + e.getMessage()));
+        }
     }
 }
