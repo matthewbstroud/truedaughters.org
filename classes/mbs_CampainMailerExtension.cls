@@ -1,4 +1,9 @@
 public with sharing class mbs_CampainMailerExtension {
+    public mbs_CampainMailerExtension(ApexPages.StandardController stdController) {
+        currentPage = 'EDIT';
+        this.m_campaign = (Campaign)stdController.getRecord();
+    }
+    
     private Campaign m_campaign;
     public Boolean getIsEditPage() {
         return currentPage == 'EDIT';
@@ -9,29 +14,54 @@ public with sharing class mbs_CampainMailerExtension {
     public Boolean getIsResultPage() {
         return currentPage == 'RESULT';
     }
+    
+    private String InstanceUrl {
+        get {
+            if (InstanceUrl == null) {
+                InstanceUrl = ApexPages.currentPage().getHeaders().get('X-Salesforce-Forwarded-To');
+            }
+            return InstanceUrl;
+        }
+        private set;
+    }
+    
+    public List<mbs_EmailImage> EmailImages {
+        get {
+            if (EmailImages == null) {
+                String instanceUrl = InstanceUrl;
+                EmailImages = new List<mbs_EmailImage>();
+                List<Document> docs = [SELECT Id, Name, CreatedDate FROM Document where Folder.Name = 'Campaign Mailer Images' AND IsPublic = true AND ContentType LIKE 'image%' 
+                                       ORDER BY CreatedDate DESC];
+                System.debug('docs=' + docs);
+                for (Document doc : docs) {
+                    EmailImages.add(new mbs_EmailImage(doc, instanceUrl));
+                }
+            }
+            return EmailImages;
+        }        
+        private set;
+    }
+    
+    private String EmailHeaderId {
+        get {
+            if (EmailHeaderId == null) {
+           		TrueDaughtersSettings__c settings = TrueDaughtersSettings__c.getOrgDefaults();
+                EmailHeaderId  = settings.EmailHeaderImageId__c;
+            }
+            return EmailHeaderId;
+        }
+        private set;
+    }
+ 
     public Boolean mailMembers {get; set;}
     public Boolean mailMemberGuardians {get; set;}
     public String emailSubject {get;set;}
     public String emailBodyHtml {get;set;}
-    public String emailBodyText {get;set;}
-    public Integer emailCount {get;set;}
-
     public string currentPage {get;set;}
     public List<Contact> selectedMembers {get; set;}
     public List<npe4__Relationship__c> selectedGuardians {get; set;}
-    public EmailTemplate eTemplate {get;set;}
-    private Messaging.SingleEmailMessage previewEmail;
-    public mbs_CampainMailerExtension(ApexPages.StandardController stdController) {
-        currentPage = 'EDIT';
-        this.m_campaign = (Campaign)stdController.getRecord();
-    }
-    public String HtmlPreview {get;set;}
-    public String getTextPreview() {
-        return eTemplate.Body;
-    } 
-    public void setTextPreview(String val) {
-        eTemplate.Body = val;
-    }
+    public List<Contact> sentContacts {get; private set;}    
+    public String HtmlPreview {get; private set;}
     
     public void removeMemberFromList() {
         if (selectedMembers.size() == 1 && selectedGuardians.isEmpty()) {
@@ -53,36 +83,24 @@ public with sharing class mbs_CampainMailerExtension {
             return;
         }
         ID guardianId = Id.valueOf(apexpages.currentpage().getparameters().get('guardianId'));
+        System.debug('removeGuardianFromList id=' + guardianId);
         for(integer i=0; i<selectedGuardians.size(); i++) {
+            System.debug('selectedGuardian[' + i + '].Id=' + selectedGuardians[i].Id);
             if (selectedGuardians[i].Id == guardianId) {
                 selectedGuardians.remove(i);
                 break;
             }
         }
-    }
-    
-	public String selectedTemplateId { public get; public set; }
-
-    public List<SelectOption> getMailerTemplates() {
-        List<SelectOption> options = new List<SelectOption>();
-        
-        for (EmailTemplate t : [
-            select Id,Name 
-            from EmailTemplate
-            where Folder.Name = 'Campaign Mailers' ORDER BY Name
-        ]) {
-            options.add(new SelectOption(t.Id,t.Name));
-        }
-        return options;
-    }
+    }   
     
     private void generateRecipientList() {
         System.debug('generateRecipientList()');
         selectedMembers = new List<Contact>();
         selectedGuardians = new List<npe4__Relationship__c>();
-        List<Contact> allMembers = [SELECT Contact.Name, Contact.Email, 
-                                 (SELECT npe4__RelatedContact__r.Name, npe4__RelatedContact__r.Email, npe4__Type__c, npe4__Relationship_Explanation__c FROM npe4__Relationships__r) 
-                                 FROM Contact WHERE Id in (SELECT ContactId FROM CampaignMember WHERE CampaignId = :m_campaign.Id) ORDER BY Name];
+        List<Contact> allMembers = [SELECT Contact.Name, Contact.Email, Contact.HasOptedOutOfEmail, Contact.FirstName,
+                                    (SELECT npe4__RelatedContact__r.Name, npe4__RelatedContact__r.FirstName, npe4__RelatedContact__r.Email, npe4__Type__c, npe4__Relationship_Explanation__c,
+                                     npe4__RelatedContact__r.HasOptedOutOfEmail FROM npe4__Relationships__r ORDER BY npe4__RelatedContact__r.Name) 
+                                    FROM Contact WHERE Id in (SELECT ContactId FROM CampaignMember WHERE CampaignId = :m_campaign.Id) ORDER BY Name];
         System.debug('allMembers=' + allMembers);
         for (Contact member : allMembers) {
             System.debug('member=' + member);
@@ -106,6 +124,7 @@ public with sharing class mbs_CampainMailerExtension {
                 selectedGuardians.add(guardian);
             }
         }
+        selectedGuardians.sort();
     }
     
     private npe4__Relationship__c findGuardian(List<npe4__Relationship__c> guardians, String guardianType) {
@@ -121,62 +140,49 @@ public with sharing class mbs_CampainMailerExtension {
         currentPage = 'EDIT';
         return null;
     }
-    
-    private void loadEmailTemplate() {
-        eTemplate = [SELECT Id, subject, body, HtmlValue FROM EmailTemplate WHERE Id = :selectedTemplateId];
-    }
-    
-    private void loadPreviewEmail() {
-        previewEmail = new Messaging.SingleEmailMessage();
-        previewEmail.setTargetObjectId(UserInfo.getUserId());
-        previewEmail.setTemplateId(selectedTemplateId);
-        previewEmail.saveAsActivity = false;
-        Messaging.sendEmail(new List<Messaging.Email> {previewEmail});
-    }
-    
+
     public PageReference previewMailer() {
         if (!mailMembers && ! mailMemberGuardians) {
             ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR, 'You must specify at least one recipient group.'));
             return null;
         }
         generateRecipientList();
-        HtmlPreview = getEmailHeader('Jane Doe') + emailBodyHtml;
+        HtmlPreview = getEmailHeader('Jane') + emailBodyHtml;
         //loadEmailTemplate();
         currentPage = 'PREVIEW';
         return null;
-    }
-    
-    public void saveTemplate() {
-        update eTemplate;
-    }
+    }    
     
     private string getEmailHeader(String memberName) {
-        string headerHtml = '<img alt="True Daughters" height="200" width="600" src="https://cs4.salesforce.com/servlet/servlet.ImageServer?id=015P0000000GMRO&oid=00DP0000003oUZq" /><br/>' + 
+        string headerHtml = '<img alt="True Daughters" height="200" width="600" src="https://' + InstanceUrl + '/servlet/servlet.ImageServer?id=' + EmailHeaderId + '&oid=' + UserInfo.getOrganizationId() + '" /><br/>' + 
             '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;fone-size:14px;color:#000000;">Dear&nbsp;' + memberName + ',</p><p/>' +
             '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;">';
         return headerHtml;
     }
     
     private string getEmailFooter() {      
-         string footerHtml = '</p>' + 
-            '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;fone-size:14px;color:#000000;">Sincerely,</p><p/>' +
-            '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;">' + UserInfo.getFirstName() + ' ' + UserInfo.getLastName() + '<br/>' +
-             UserInfo.getOrganizationName() + '<br/>' + UserInfo.getUserEmail() + '</p>';
+        EmailServicesAddress address = [SELECT Id, LocalPart, EmailDomainName FROM EmailServicesAddress 
+                                        WHERE FunctionId in (SELECT Id FROM EmailServicesFunction WHERE FunctionName = 'Unsubscribe Service')];
+        
+        string footerHtml = '</p><br/><br/>' +            
+            '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;fone-size:10px;color:#000000;">If you would no longer like to recieve this type of email from True Daughters ' +
+            '<a href="mailto:' + address.LocalPart + '@' + address.EmailDomainName + '?subject=unsubscribe&body=I wish to opt out of future emails.">click here</a>' + 
+            ' to unsubscribe and click send on the resulting email.</p>';
         return footerHtml;
     }
     
     public PageReference sendMail() {
-        emailCount = 0;
+        sentContacts = new List<Contact>();
         List<Messaging.SingleEmailMessage> emailMessages = new List<Messaging.SingleEmailMessage>();
         String headerHtml;
-
+        
         for (Contact member : selectedMembers) {        
-            if (String.isNotEmpty(member.Email)) {
+            if (String.isNotEmpty(member.Email) && !member.HasOptedOutOfEmail) {
+                sentContacts.add(member);
                 Messaging.SingleEmailMessage emailMessage = new Messaging.SingleEmailMessage();
-                emailMessage.setTargetObjectId(member.Id);
-                //emailMessage.setTemplateId(selectedTemplateId);            
-                headerHtml = getEmailHeader(member.Name);
-                emailMessage.HtmlBody = headerHtml + emailBodyHtml;
+                emailMessage.setTargetObjectId(member.Id);      
+                headerHtml = getEmailHeader(member.FirstName);
+                emailMessage.HtmlBody = headerHtml + emailBodyHtml + getEmailFooter();
                 emailMessage.Subject = emailSubject;
                 emailMessage.setSaveAsActivity(true);
                 emailMessages.add(emailMessage);
@@ -187,11 +193,12 @@ public with sharing class mbs_CampainMailerExtension {
             }            
         }
         for (npe4__Relationship__c guardian : selectedGuardians) {
-            if (String.isNotEmpty(guardian.npe4__RelatedContact__r.Email)) {
+            if (String.isNotEmpty(guardian.npe4__RelatedContact__r.Email) && !guardian.npe4__RelatedContact__r.HasOptedOutOfEmail) {
+                sentContacts.add(guardian.npe4__RelatedContact__r);
                 Messaging.SingleEmailMessage emailMessage = new Messaging.SingleEmailMessage();
                 emailMessage.setTargetObjectId(guardian.npe4__RelatedContact__c);
-                headerHtml = getEmailHeader(guardian.npe4__RelatedContact__r.Name);
-                emailMessage.HtmlBody = headerHtml + emailBodyHtml;
+                headerHtml = getEmailHeader(guardian.npe4__RelatedContact__r.FirstName);
+                emailMessage.HtmlBody = headerHtml + emailBodyHtml + getEmailFooter();
                 emailMessage.Subject = emailSubject;
                 emailMessage.setSaveAsActivity(false);
                 emailMessages.add(emailMessage);
@@ -212,7 +219,6 @@ public with sharing class mbs_CampainMailerExtension {
         if (emailMessages.isEmpty()) {
             return;
         }
-        emailCount += emailMessages.size();
         List<Messaging.SendEmailResult> results;
         try {
             results = Messaging.sendEmail(emailMessages);
