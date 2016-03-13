@@ -63,7 +63,7 @@ public with sharing class mbs_CampainMailerExtension {
     public String emailBodyHtml {get;set;}
     public string currentPage {get;set;}
     public List<Contact> selectedMembers {get; set;}
-    public List<npe4__Relationship__c> selectedGuardians {get; set;}
+    public List<npe4__Relationship__c> selectedGuardians {get; set;}    
     public List<Contact> sentContacts {get; private set;}    
     public String HtmlPreview {get; private set;}
     
@@ -101,6 +101,7 @@ public with sharing class mbs_CampainMailerExtension {
         System.debug('generateRecipientList()');
         selectedMembers = new List<Contact>();
         selectedGuardians = new List<npe4__Relationship__c>();
+        Set<Id> guardianIds = new Set<Id>();
         List<Contact> allMembers = [SELECT Contact.Name, Contact.Email, Contact.HasOptedOutOfEmail, Contact.FirstName,
                                     (SELECT npe4__RelatedContact__r.Name, npe4__RelatedContact__r.FirstName, npe4__RelatedContact__r.Email, npe4__Type__c, npe4__Relationship_Explanation__c,
                                      npe4__RelatedContact__r.HasOptedOutOfEmail FROM npe4__Relationships__r ORDER BY npe4__RelatedContact__r.Name) 
@@ -125,7 +126,11 @@ public with sharing class mbs_CampainMailerExtension {
                 if (guardian == null) {
                     guardian = member.npe4__Relationships__r[0];
                 }
-                selectedGuardians.add(guardian);
+                System.debug('found guardian with id=' + guardian.Id);
+                if (!guardianIds.contains(guardian.npe4__RelatedContact__c)) {
+                    guardianIds.add(guardian.npe4__RelatedContact__c);
+                    selectedGuardians.add(guardian);
+                }
             }
         }
         selectedGuardians.sort();
@@ -165,6 +170,9 @@ public with sharing class mbs_CampainMailerExtension {
     }
     
     private string getEmailFooter() {      
+        if (Test.isRunningTest()) {
+            return '</p>';
+        }
         EmailServicesAddress address = [SELECT Id, LocalPart, EmailDomainName FROM EmailServicesAddress 
                                         WHERE FunctionId in (SELECT Id FROM EmailServicesFunction WHERE FunctionName = 'Unsubscribe Service')];
         
