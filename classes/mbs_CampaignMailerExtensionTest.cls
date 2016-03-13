@@ -79,6 +79,6 @@ public class mbs_CampaignMailerExtensionTest {
         System.assertEquals(true, extension.getIsResultPage(), 'should be on preview page');
         System.assertEquals(2, extension.sentContacts.size(), 'should have sent two email');
         Test.stopTest();
-
+		delete document;
     }
 }
