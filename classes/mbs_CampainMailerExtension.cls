@@ -28,9 +28,13 @@ public with sharing class mbs_CampainMailerExtension {
     public List<mbs_EmailImage> EmailImages {
         get {
             if (EmailImages == null) {
+                String folderName = 'Campaign Mailer Images';
+                if (Test.isRunningTest()) {
+                    folderName = 'Shared Documents';
+                }
                 String instanceUrl = InstanceUrl;
                 EmailImages = new List<mbs_EmailImage>();
-                List<Document> docs = [SELECT Id, Name, CreatedDate FROM Document where Folder.Name = 'Campaign Mailer Images' AND IsPublic = true AND ContentType LIKE 'image%' 
+                List<Document> docs = [SELECT Id, Name, CreatedDate FROM Document where Folder.Name = :folderName AND IsPublic = true AND ContentType LIKE 'image%' 
                                        ORDER BY CreatedDate DESC];
                 System.debug('docs=' + docs);
                 for (Document doc : docs) {

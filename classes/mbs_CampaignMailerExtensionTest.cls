@@ -12,7 +12,7 @@ public class mbs_CampaignMailerExtensionTest {
         document.DeveloperName = 'my_document';
         document.IsPublic = true;
         document.Name = 'My Document';
-        document.FolderId = [select id from folder where name = 'Campaign Mailer Images'].id;
+        document.FolderId = [select id from folder where name = 'Shared Documents'].id;
         insert document;
         Contact daughter = new Contact();
         daughter.FirstName = 'Nancy';
