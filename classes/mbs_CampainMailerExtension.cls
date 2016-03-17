@@ -156,45 +156,47 @@ public with sharing class mbs_CampainMailerExtension {
             return null;
         }
         generateRecipientList();
-        HtmlPreview = getEmailHeader('Jane') + emailBodyHtml + getEmailFooter();
+        HtmlPreview = generateEmail('Jane', emailBodyHtml);
         //loadEmailTemplate();
         currentPage = 'PREVIEW';
         return null;
     }    
     
-    private string getEmailHeader(String memberName) {
-        string headerHtml = '<img alt="True Daughters" height="200" width="600" src="https://' + InstanceUrl + '/servlet/servlet.ImageServer?id=' + EmailHeaderId + '&oid=' + UserInfo.getOrganizationId() + '" /><br/>' + 
-            '<p style="font-family:Arial;fone-size:11px;color:#000000;">Dear&nbsp;' + memberName + ',</p><p/>' +
-            '<p style="font-family:Arial;fone-size:11px;">';
-        return headerHtml;
+    private string generateEmail(String memberName, String emailBody) {
+        string html = '<table width="100%" cellpadding="0" cellspacing="0" border="0" align="center">' +
+            '<tr><td align="center">' +
+            '<img alt="True Daughters - The Rise Up Effect" height="200" width="600" align="middle" src="https://' + InstanceUrl + '/servlet/servlet.ImageServer?id=' + EmailHeaderId + '&oid=' + UserInfo.getOrganizationId() + '" /><br/>' + 
+			'</td></tr>' +
+            '<tr><td><table align="center" style="font-family:Arial;font-size:11pt;color:#000000;" border="0" cellpadding="0" cellspacing="0" width="100%">' +
+            '<tr><td>Dear&nbsp;' + memberName + ',<br/><br/></td></tr>' +
+    		'<tr><td>' + emailBody + '</td></tr></table></td></tr><tr>' +
+			'<td width="100%" style="font-family:Arial;font-size:9pt;color:#000000;text-align:center;"><br/><br/>' + getEmailFooter() + '</td></tr></table>';
+        return html;
     }
     
     private string getEmailFooter() {      
         if (Test.isRunningTest()) {
-            return '</p>';
+            return '';
         }
         EmailServicesAddress address = [SELECT Id, LocalPart, EmailDomainName FROM EmailServicesAddress 
                                         WHERE FunctionId in (SELECT Id FROM EmailServicesFunction WHERE FunctionName = 'Unsubscribe Service')];
         
-        string footerHtml = '</p><br/><br/>' +            
-            '<p style="font-family:Arial;fone-size:9px;color:#000000;"><center>If you would no longer like to receive this type of email from True Daughters ' +
+        string footerHtml = 'If you would no longer like to receive this type of email from True Daughters ' +
             '<a href="mailto:' + address.LocalPart + '@' + address.EmailDomainName + '?subject=unsubscribe&body=I wish to opt out of future emails.">click here</a>' + 
-            ' to unsubscribe and click send on the resulting email.</center></p>';
+            ' to unsubscribe and click send on the resulting email.';
         return footerHtml;
     }
     
     public PageReference sendMail() {
         sentContacts = new List<Contact>();
         List<Messaging.SingleEmailMessage> emailMessages = new List<Messaging.SingleEmailMessage>();
-        String headerHtml;
         
         for (Contact member : selectedMembers) {        
             if (String.isNotEmpty(member.Email) && !member.HasOptedOutOfEmail) {
                 sentContacts.add(member);
                 Messaging.SingleEmailMessage emailMessage = new Messaging.SingleEmailMessage();
                 emailMessage.setTargetObjectId(member.Id);      
-                headerHtml = getEmailHeader(member.FirstName);
-                emailMessage.HtmlBody = headerHtml + emailBodyHtml + getEmailFooter();
+                emailMessage.HtmlBody = generateEmail(member.FirstName, emailBodyHtml);
                 emailMessage.Subject = emailSubject;
                 emailMessage.setSaveAsActivity(true);
                 emailMessages.add(emailMessage);
@@ -209,8 +211,7 @@ public with sharing class mbs_CampainMailerExtension {
                 sentContacts.add(guardian.npe4__RelatedContact__r);
                 Messaging.SingleEmailMessage emailMessage = new Messaging.SingleEmailMessage();
                 emailMessage.setTargetObjectId(guardian.npe4__RelatedContact__c);
-                headerHtml = getEmailHeader(guardian.npe4__RelatedContact__r.FirstName);
-                emailMessage.HtmlBody = headerHtml + emailBodyHtml + getEmailFooter();
+                emailMessage.HtmlBody = generateEmail(guardian.npe4__RelatedContact__r.FirstName, emailBodyHtml);
                 emailMessage.Subject = emailSubject;
                 emailMessage.setSaveAsActivity(true);
                 emailMessages.add(emailMessage);
