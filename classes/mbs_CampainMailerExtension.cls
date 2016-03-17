@@ -156,7 +156,7 @@ public with sharing class mbs_CampainMailerExtension {
             return null;
         }
         generateRecipientList();
-        HtmlPreview = getEmailHeader('Jane') + emailBodyHtml;
+        HtmlPreview = getEmailHeader('Jane') + emailBodyHtml + getEmailFooter();
         //loadEmailTemplate();
         currentPage = 'PREVIEW';
         return null;
@@ -164,8 +164,8 @@ public with sharing class mbs_CampainMailerExtension {
     
     private string getEmailHeader(String memberName) {
         string headerHtml = '<img alt="True Daughters" height="200" width="600" src="https://' + InstanceUrl + '/servlet/servlet.ImageServer?id=' + EmailHeaderId + '&oid=' + UserInfo.getOrganizationId() + '" /><br/>' + 
-            '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;fone-size:14px;color:#000000;">Dear&nbsp;' + memberName + ',</p><p/>' +
-            '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;">';
+            '<p style="font-family:Arial;fone-size:11px;color:#000000;">Dear&nbsp;' + memberName + ',</p><p/>' +
+            '<p style="font-family:Arial;fone-size:11px;">';
         return headerHtml;
     }
     
@@ -177,9 +177,9 @@ public with sharing class mbs_CampainMailerExtension {
                                         WHERE FunctionId in (SELECT Id FROM EmailServicesFunction WHERE FunctionName = 'Unsubscribe Service')];
         
         string footerHtml = '</p><br/><br/>' +            
-            '<p style="font-family:\'HelveticaNeue\',Helvetica,Arial;fone-size:10px;color:#000000;">If you would no longer like to recieve this type of email from True Daughters ' +
+            '<p style="font-family:Arial;fone-size:9px;color:#000000;"><center>If you would no longer like to receive this type of email from True Daughters ' +
             '<a href="mailto:' + address.LocalPart + '@' + address.EmailDomainName + '?subject=unsubscribe&body=I wish to opt out of future emails.">click here</a>' + 
-            ' to unsubscribe and click send on the resulting email.</p>';
+            ' to unsubscribe and click send on the resulting email.</center></p>';
         return footerHtml;
     }
     
@@ -212,7 +212,7 @@ public with sharing class mbs_CampainMailerExtension {
                 headerHtml = getEmailHeader(guardian.npe4__RelatedContact__r.FirstName);
                 emailMessage.HtmlBody = headerHtml + emailBodyHtml + getEmailFooter();
                 emailMessage.Subject = emailSubject;
-                emailMessage.setSaveAsActivity(false);
+                emailMessage.setSaveAsActivity(true);
                 emailMessages.add(emailMessage);
                 if (emailMessages.size() == 100) {
                     sendBatchEmail(emailMessages);
